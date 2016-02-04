@@ -6,15 +6,14 @@ import javax.mail.*;
 import javax.mail.search.FlagTerm;
 import java.io.File;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Properties;
-import java.util.Scanner;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class PollingThread implements Runnable
 {
     private static final String SECRET_FILE = "secret.txt";
-    public static ArrayList<Message> newMessages = new ArrayList<>();
+    public static ConcurrentLinkedQueue<Message> newMessages = new ConcurrentLinkedQueue<>();
+    private static  String user;
     private static Properties readProperties;
     private static Session session;
     private static Store store;
@@ -37,7 +36,7 @@ public class PollingThread implements Runnable
             return;
         }
 
-        final String user = secret.next();
+        user = secret.next();
         final String pass = secret.next();
         secret.close();
 
@@ -47,11 +46,13 @@ public class PollingThread implements Runnable
             readProperties = System.getProperties();
             readProperties.setProperty("mail.store.protocol", "imaps");
             session = Session.getDefaultInstance(readProperties, null);
-            session.setDebug(true);
+            //session.setDebug(true);
 
             store = session.getStore("imaps");
-
             store.connect("imap.gmail.com", user, pass);
+
+            inbox = store.getFolder("INBOX");
+            inbox.open(Folder.READ_WRITE);
         } catch (MessagingException e)
         {
             e.printStackTrace();
@@ -72,11 +73,13 @@ public class PollingThread implements Runnable
         {
             try
             {
-                inbox = store.getFolder("INBOX");
-                inbox.open(Folder.READ_ONLY);
-                Message messages[] = inbox.search(new FlagTerm(new Flags(Flags.Flag.SEEN), false));
+                Message[] messages = inbox.search(new FlagTerm(new Flags(Flags.Flag.SEEN), false));
+                for (Message m : messages)
+                {
+                    newMessages.add(m);
+                    m.setFlag(Flags.Flag.SEEN, true);
+                }
 
-                newMessages.addAll(Arrays.asList(messages));
                 System.out.println("You have " + newMessages.size() + " new messages");
 
             } catch (MessagingException e)
@@ -103,6 +106,5 @@ public class PollingThread implements Runnable
             return PollingInstance.INSTANCE;
         }
     }
-
 
 }
