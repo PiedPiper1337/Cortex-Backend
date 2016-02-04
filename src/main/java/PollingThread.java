@@ -46,7 +46,7 @@ public class PollingThread implements Runnable
             readProperties = System.getProperties();
             readProperties.setProperty("mail.store.protocol", "imaps");
             session = Session.getDefaultInstance(readProperties, null);
-            //session.setDebug(true);
+            session.setDebug(true);
 
             store = session.getStore("imaps");
             store.connect("imap.gmail.com", user, pass);
