@@ -4,16 +4,14 @@
 
 import javax.mail.*;
 import javax.mail.search.FlagTerm;
-import java.io.File;
-import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class PollingThread implements Runnable
 {
-    private static final String SECRET_FILE = "secret.txt";
     public static ConcurrentLinkedQueue<Message> newMessages = new ConcurrentLinkedQueue<>();
-    private static  String user;
+    public static ConcurrentLinkedQueue<Message> toDelete = new ConcurrentLinkedQueue<>();
     private static Properties readProperties;
     private static Session session;
     private static Store store;
@@ -21,37 +19,19 @@ public class PollingThread implements Runnable
 
     private PollingThread()
     {
-        Scanner secret = null;
-        try
-        {
-            secret = new Scanner(new File(SECRET_FILE));
-        } catch (IOException e)
-        {
-            e.printStackTrace();
-        }
-
-        if (secret == null)
-        {
-            System.out.println("Error, secret file not found");
-            return;
-        }
-
-        user = secret.next();
-        final String pass = secret.next();
-        secret.close();
-
+        String user = Backend.user;
+        String pass = Backend.pass;
 
         try
         {
             readProperties = System.getProperties();
             readProperties.setProperty("mail.store.protocol", "imaps");
             session = Session.getDefaultInstance(readProperties, null);
-            session.setDebug(true);
+            //session.setDebug(true);
 
             store = session.getStore("imaps");
             store.connect("imap.gmail.com", user, pass);
-
-            inbox = store.getFolder("INBOX");
+            inbox = store.getFolder("Inbox");
             inbox.open(Folder.READ_WRITE);
         } catch (MessagingException e)
         {
@@ -73,14 +53,37 @@ public class PollingThread implements Runnable
         {
             try
             {
-                Message[] messages = inbox.search(new FlagTerm(new Flags(Flags.Flag.SEEN), false));
+//                inbox = store.getFolder("Inbox");
+//                inbox.open(Folder.READ_WRITE);
+                Message[] messages = inbox.getMessages();
                 for (Message m : messages)
                 {
-                    newMessages.add(m);
+                    boolean addMessage = true;
+                    Flags allFlags = m.getFlags();
+                    Flags.Flag[] flags = allFlags.getSystemFlags();
+                    for (Flags.Flag f : flags)
+                    {
+                        if (f == Flags.Flag.SEEN)
+                            addMessage = false;
+                    }
+                    if (addMessage)
+                        newMessages.add(m);
                     m.setFlag(Flags.Flag.SEEN, true);
                 }
 
                 System.out.println("You have " + newMessages.size() + " new messages");
+
+
+                // delete messages from queue
+                Flags deleted = new Flags(Flags.Flag.DELETED);
+                while (toDelete.peek() != null)
+                {
+                    Message m = toDelete.poll();
+                    m.setFlag(Flags.Flag.DELETED, true);
+                }
+
+                inbox.expunge();
+//                inbox.close(true);
 
             } catch (MessagingException e)
             {
@@ -89,7 +92,7 @@ public class PollingThread implements Runnable
 
             try
             {
-                Thread.sleep(30000);
+                Thread.sleep(15000);
             } catch (InterruptedException e)
             {
                 e.printStackTrace();
