@@ -10,8 +10,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class PollingThread implements Runnable
 {
-    public static ConcurrentLinkedQueue<Message> newMessages = new ConcurrentLinkedQueue<>();
-    public static ConcurrentLinkedQueue<Message> toDelete = new ConcurrentLinkedQueue<>();
+    public static ConcurrentLinkedQueue<Message> newMessages = new ConcurrentLinkedQueue<Message>();
+    public static ConcurrentLinkedQueue<Message> toDelete = new ConcurrentLinkedQueue<Message>();
     private static Properties readProperties;
     private static Session session;
     private static Store store;
@@ -27,7 +27,7 @@ public class PollingThread implements Runnable
             readProperties = System.getProperties();
             readProperties.setProperty("mail.store.protocol", "imaps");
             session = Session.getDefaultInstance(readProperties, null);
-            //session.setDebug(true);
+            session.setDebug(true);
 
             store = session.getStore("imaps");
             store.connect("imap.gmail.com", user, pass);
