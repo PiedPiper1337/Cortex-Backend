@@ -13,6 +13,7 @@ import java.util.Properties;
 public class MessageAnalysisThread implements Runnable
 {
     private Message message;
+    private int messageLength;
 
     public MessageAnalysisThread(Message message)
     {
@@ -38,7 +39,7 @@ public class MessageAnalysisThread implements Runnable
             for (String s : query)
                 System.out.println(s);
 
-            String output = query[1] + ":";
+            String output = "";
             if (query[0].equals("QUES"))
             {
                 System.out.println("GOOGLE QUESTION");
@@ -77,25 +78,31 @@ public class MessageAnalysisThread implements Runnable
             }
             else
             {
-                output = query[1] + ":cortex could not complete your search, please try again with a different question";
+                output = "cortex could not complete your search, please try again with a different question";
             }
 
             if (output.length() == 0)
-                output = query[1] + ":cortex could not complete your search, please try again with a different question";
+                output = "cortex could not complete your search, please try again with a different question";
 
             if (output.length() > 20)
             {
                 if (output.substring(0, 20).contains("Traceback"))
                 {
-                    output = query[1] + ":cortex could not complete your search, please try again with a different question";
+                    output = "cortex could not complete your search, please try again with a different question";
                 }
                 if (output.length() > 1000)
                 {
-                    output = output.substring(0,1001);
+                    output = output.substring(0,1000);
                 }
             }
-
-
+            int messages = 1;
+            if ((query[0].length() + query[1].length() + 7 + output.length()) > 140)
+            {
+                messageLength = 140 - (query[0].length() + query[1].length() + 7);
+                messages = output.length() / messageLength;
+                if (output.length() % messageLength > 0)
+                    messages++;
+            }
 
                 Properties sendProps = new Properties();
             sendProps.put("mail.smtp.auth", "true");
@@ -116,13 +123,40 @@ public class MessageAnalysisThread implements Runnable
 
                 System.out.println("sending");
 
-                Message message = new MimeMessage(sendSession);
-                message.setFrom(new InternetAddress("cortex@cortex.io"));
-                message.setRecipient(Message.RecipientType.BCC, from[0]);
-                message.setSubject("Thank you for using cortex");
-                message.setText(output);
-                System.out.println(output);
-                Transport.send(message);
+                Message sentmessage = new MimeMessage(sendSession);
+                sentmessage.setFrom(new InternetAddress("cortex@cortex.io"));
+                sentmessage.setRecipient(Message.RecipientType.BCC, from[0]);
+                sentmessage.setSubject("Thank you for using cortex");
+
+                if (messages > 1)
+                {
+                    for (int i = 0; i < messages; i++)
+                    {
+                        int start = i * messageLength;
+                        int end = 0;
+                        if (i != (messages - 1))
+                            end = (i + 1) * messageLength;
+                        else
+                            end = output.length() - 1;
+                        sentmessage.setText(query[0] + ":" + query[1] + ":" + (i+1) + "/" + messages + ":" + output.substring(start,end));
+
+                        System.out.println(sentmessage.getContent().toString());
+                        Transport.send(sentmessage);
+                        PollingThread.toDelete.add(sentmessage);
+                    }
+                }
+                else
+                {
+                    sentmessage.setText(query[0] + ":" + query[1] + ":1/1:" + output);
+                    System.out.println(output);
+                    Transport.send(sentmessage);
+                    PollingThread.toDelete.add(sentmessage);
+                }
+
+
+//                message.setText(output);
+//                System.out.println(output);
+//                Transport.send(message);
 
                 PollingThread.toDelete.add(message);
 
