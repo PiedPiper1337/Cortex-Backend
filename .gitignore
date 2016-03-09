@@ -89,5 +89,6 @@ buildNumber.properties
 .mvn/timing.properties
 
 secret.txt
-
+cortexinfo.txt
 outlooksecret.txt
+*.random

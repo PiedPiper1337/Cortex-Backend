@@ -23,4 +23,5 @@ if __name__ == "__main__":
     voice.login()
     for reply in list:
         voice.send_sms(recipient, reply)
-        time.sleep(5)
+        print 'sent: ', reply
+        time.sleep(6)

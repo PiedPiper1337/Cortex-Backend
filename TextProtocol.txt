@@ -1,0 +1,12 @@
+Sending from App to Backend:
+    Carrier:Type:HexEncodedPrimaryKey:ActualMessageOrQuestion
+
+    example -
+    ATT:QUES:1b:who is the tenth president
+
+
+Sending from Backend to App:
+    HexEncodedPrimaryKey:currentMessage#/TotalMessage#:Answer
+
+    example -
+    1b:1/1:John Tyler

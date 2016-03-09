@@ -80,17 +80,17 @@ public class MessageResponseThread extends Thread {
         }
 
 //        System.out.println(result);
-        int headerLength = type.length() + hexEncodedPrimaryKey.length() + 4 + 6; //assume 3 digits number of messages to send
+        int headerLength = type.length() + hexEncodedPrimaryKey.length() + 4 + 4; //assume 3 digits number of messages to send
         int charactersPerMessage = 140 - headerLength;
         ArrayList<String> replies = new ArrayList<>();
         String firstPartOfHeader = type + ":" + hexEncodedPrimaryKey + ":";
         int numMessages = (int) Math.ceil((result.length() * 1.0)/charactersPerMessage);
-        String totalNumMessages = convertToThreeLetterString(numMessages);
+        String totalNumMessages = convertToTwoLetterString(numMessages);
 
         int currentMessageNumber = 1;
         int characterPosition = 0;
         while (characterPosition < result.length()) {
-            String header = firstPartOfHeader + convertToThreeLetterString(currentMessageNumber) + "/"
+            String header = firstPartOfHeader + convertToTwoLetterString(currentMessageNumber) + "/"
                     + totalNumMessages + ":";
             int finalIndex = ((characterPosition + charactersPerMessage) > result.length()) ? result.length() : (characterPosition + charactersPerMessage);
             String body = result.substring(characterPosition, finalIndex);
@@ -169,6 +169,16 @@ public class MessageResponseThread extends Thread {
         return result;
     }
 
+    private String convertToTwoLetterString(int num) {
+        String result = String.valueOf(num);
+        int lengthDifference = 2 - result.length();
+        for (int i = 0; i < lengthDifference; i++) {
+            result = " " + result;
+        }
+        return result;
+    }
+
+
 
 
     private String lookUpGoogle(String actualMessage) {
@@ -222,7 +232,12 @@ public class MessageResponseThread extends Thread {
     private void sendMessage(String filename) {
         try {
             Process p = Runtime.getRuntime().exec(new String[]{"python", "python/send_message.py", filename});
-            p.waitFor();
+
+            BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            String s;
+            while ((s=stdInput.readLine())!= null) {
+                System.out.println(s);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
