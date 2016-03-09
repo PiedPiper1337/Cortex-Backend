@@ -1,6 +1,9 @@
 import javax.mail.*;
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -87,9 +90,23 @@ public class Backend {
                 }
                 inbox.close(true);
                 store.close();
+
+                String workingDir = System.getProperty("user.dir");
+                File file = new File(workingDir);
+                File[] currentDirectoryFiles = file.listFiles(new FilenameFilter() {
+                    @Override
+                    public boolean accept(File dir, String name) {
+                        return name.endsWith(".random");
+                    }
+                });
+                if (currentDirectoryFiles != null) {
+                    for (File currentFile : currentDirectoryFiles) {
+                        currentFile.delete();
+                    }
+                }
+
             } catch (Exception e) {
                 e.printStackTrace();
-                continue;
             } finally {
                 try {
                     Thread.sleep(5000);

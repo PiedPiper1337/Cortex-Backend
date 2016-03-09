@@ -1,11 +1,11 @@
+import com.google.gson.Gson;
+import org.json.simple.JSONArray;
+
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Properties;
-import java.util.Random;
+import java.io.*;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -17,6 +17,7 @@ public class MessageResponseThread extends Thread {
     private Message message;
     private String user;
     private String password;
+
 
 
     public MessageResponseThread(Message message, String user, String password) {
@@ -64,6 +65,7 @@ public class MessageResponseThread extends Thread {
         String type = messageText.substring(0, indexOfFirstColon);
         String hexEncodedPrimaryKey = messageText.substring(indexOfFirstColon + 1, indexOfSecondColon);
         String actualMessage = messageText.substring(indexOfSecondColon + 1);
+        actualMessage = actualMessage.replaceAll("[^\\w ]", "");
         String result = null;
         switch (type) {
             case "WIKI":
@@ -76,6 +78,7 @@ public class MessageResponseThread extends Thread {
                 result = CORTEX_FAILURE;
                 break;
         }
+
 //        System.out.println(result);
         int headerLength = type.length() + hexEncodedPrimaryKey.length() + 4 + 6; //assume 3 digits number of messages to send
         int charactersPerMessage = 140 - headerLength;
@@ -96,36 +99,65 @@ public class MessageResponseThread extends Thread {
             currentMessageNumber++;
         }
 
-        Properties sendProps = new Properties();
-        sendProps.put("mail.smtp.auth", "true");
-        sendProps.put("mail.smtp.starttls.enable", "true");
-        sendProps.put("mail.smtp.host", "smtp.gmail.com");
-        sendProps.put("mail.smtp.port", "587");
-
-        Session sendSession = Session.getInstance(sendProps, new javax.mail.Authenticator()
-        {
-            protected PasswordAuthentication getPasswordAuthentication()
-            {
-                return new PasswordAuthentication(user, password);
-            }
-        });
-
-        for (String replyText : replies) {
-            try {
-                Address[] from = message.getFrom();
-                Message reply = new MimeMessage(sendSession);
-                reply.setFrom(new InternetAddress("cortex@cortex.io"));
-                reply.setRecipient(Message.RecipientType.BCC, from[0]);
-                reply.setSubject("Thank you for using cortex");
-                reply.setText(replyText);
-                Transport.send(reply);
-//                System.out.println(reply);
-                Thread.sleep(300);
-            } catch (Exception e) {
-                e.printStackTrace();
-                continue;
-            }
+        String uuid = UUID.randomUUID().toString() + ".random";
+        File file = new File(uuid);
+        while (file.exists()) {
+            uuid = UUID.randomUUID().toString() + ".random";
+            file = new File(uuid);
         }
+
+
+        try {
+            String recipient = message.getFrom()[0].toString();
+            recipient = recipient.replaceAll("\\D", "").substring(0, 10);
+
+//            System.out.println("Recipient: " + recipient);
+            HashMap<String, List<String>> toJsonify = new HashMap<>();
+            toJsonify.put("array", replies);
+            String json = new Gson().toJson(toJsonify);
+
+            System.out.println(json);
+            PrintWriter printWriter = new PrintWriter(file);
+            printWriter.println(recipient);
+            printWriter.println(json);
+            printWriter.close();
+            sendMessage(file.getAbsolutePath());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+
+
+
+//        Properties sendProps = new Properties();
+//        sendProps.put("mail.smtp.auth", "true");
+//        sendProps.put("mail.smtp.starttls.enable", "true");
+//        sendProps.put("mail.smtp.host", "smtp.gmail.com");
+//        sendProps.put("mail.smtp.port", "587");
+//
+//        Session sendSession = Session.getInstance(sendProps, new javax.mail.Authenticator()
+//        {
+//            protected PasswordAuthentication getPasswordAuthentication()
+//            {
+//                return new PasswordAuthentication(user, password);
+//            }
+//        });
+//
+//        for (String replyText : replies) {
+//            try {
+//                Address[] from = message.getFrom();
+//                Message reply = new MimeMessage(sendSession);
+//                reply.setFrom(new InternetAddress("cortex@cortex.io"));
+//                reply.setRecipient(Message.RecipientType.BCC, from[0]);
+//                reply.setSubject("Thank you for using cortex");
+//                reply.setText(replyText);
+//                Transport.send(reply);
+//                Thread.sleep(800);
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//                continue;
+//            }
+//        }
     }
 
     private String convertToThreeLetterString(int num) {
@@ -166,14 +198,14 @@ public class MessageResponseThread extends Thread {
                 }
                 Thread.sleep(200);
             }
-            output = result.toString();
+            output = result.toString().replaceAll("\\s+"," ");
             output = output.trim();
             System.out.println(output);
 
 
             if (output.length() > 0) {
-                if (output.length() > 3000) {
-                    output = output.substring(0, 3000);
+                if (output.length() > Constants.STRING_LIMIT) {
+                    output = output.substring(0, Constants.STRING_LIMIT);
                 }
             } else {
                 System.out.println("length wasn't right");
@@ -185,6 +217,17 @@ public class MessageResponseThread extends Thread {
         }
         return output;
     }
+
+
+    private void sendMessage(String filename) {
+        try {
+            Process p = Runtime.getRuntime().exec(new String[]{"python", "python/send_message.py", filename});
+            p.waitFor();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
 
     private boolean verifyString(String input) {
         //if its too long
@@ -203,42 +246,16 @@ public class MessageResponseThread extends Thread {
         }
 
         //if the question portion has any punctuation
-        int indexOfFirstColon = input.indexOf(":");
-        int indexOfSecondColon = input.indexOf(":", indexOfFirstColon + 1);
-        String actualMessage = input.substring(indexOfSecondColon + 1);
+//        int indexOfFirstColon = input.indexOf(":");
+//        int indexOfSecondColon = input.indexOf(":", indexOfFirstColon + 1);
+//        String actualMessage = input.substring(indexOfSecondColon + 1);
 
-        if (actualMessage.matches(".*[^\\w ].*")) {
-            System.out.println("rest of message had non word characters");
-            System.out.println(actualMessage);
-            return false;
-        }
+//        if (actualMessage.matches(".*[^\\w ].*")) {
+//            System.out.println("rest of message had non word characters");
+//            System.out.println(actualMessage);
+//            return false;
+//        }
         return true;
     }
-//
-//    /*
-//    * This method would print FROM,TO and SUBJECT of the message
-//    */
-//    public static void writeEnvelope(Message m) throws Exception {
-//        System.out.println("New message!");
-//        System.out.println("---------------------------");
-//        Address[] a;
-//
-//        // FROM
-//        if ((a = m.getFrom()) != null) {
-//            for (int j = 0; j < a.length; j++)
-//                System.out.println("FROM: " + a[j].toString());
-//        }
-//
-//        // TO
-//        if ((a = m.getRecipients(Message.RecipientType.TO)) != null) {
-//            for (int j = 0; j < a.length; j++)
-//                System.out.println("TO: " + a[j].toString());
-//        }
-//
-//        // SUBJECT
-//        if (m.getSubject() != null)
-//            System.out.println("SUBJECT: " + m.getSubject());
-//
-//    }
 
 }
