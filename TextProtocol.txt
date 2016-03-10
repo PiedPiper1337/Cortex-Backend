@@ -6,7 +6,10 @@ Sending from App to Backend:
 
 
 Sending from Backend to App:
-    HexEncodedPrimaryKey:currentMessage#/TotalMessage#:Answer
+    CHexEncodedPrimaryKey:currentMessage#/TotalMessage#:Answer
 
     example -
-    1b:1/1:John Tyler
+    C1b:1/1:John Tyler
+
+
+Note that the hexencodedprimarykey will always be prepended with 'C'

@@ -24,4 +24,4 @@ if __name__ == "__main__":
     for reply in list:
         voice.send_sms(recipient, reply)
         print 'sent: ', reply
-        time.sleep(6)
+        time.sleep(10)

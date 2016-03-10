@@ -18,6 +18,19 @@ public class MessageResponseThread extends Thread {
     private String user;
     private String password;
 
+    public static Map<String,String> carrierToGateway = new HashMap<>();
+    public static List<String> options = new ArrayList<>();
+    static{
+        carrierToGateway.put("ATT","@txt.att.net"); //at&t
+        carrierToGateway.put("VER", "@vtext.com"); //verizon
+        carrierToGateway.put("SPR", "@messaging.sprintpcs.com"); //sprint
+        carrierToGateway.put("TMO", "@tmomail.net"); //t-mobile
+
+        options.add("QUES");
+        options.add("WIKI");
+    }
+
+
 
 
     public MessageResponseThread(Message message, String user, String password) {
@@ -62,10 +75,15 @@ public class MessageResponseThread extends Thread {
     private void replyToMessage(String messageText) {
         int indexOfFirstColon = messageText.indexOf(":");
         int indexOfSecondColon = messageText.indexOf(":", indexOfFirstColon + 1);
-        String type = messageText.substring(0, indexOfFirstColon);
-        String hexEncodedPrimaryKey = messageText.substring(indexOfFirstColon + 1, indexOfSecondColon);
-        String actualMessage = messageText.substring(indexOfSecondColon + 1);
+        int indexOfThirdColon = messageText.indexOf(":", indexOfSecondColon + 1);
+
+        String carrier = messageText.substring(0, indexOfFirstColon);
+        String type = messageText.substring(indexOfFirstColon + 1, indexOfSecondColon);
+        String hexEncodedPrimaryKey = messageText.substring(indexOfSecondColon + 1, indexOfThirdColon);
+
+        String actualMessage = messageText.substring(indexOfThirdColon + 1);
         actualMessage = actualMessage.replaceAll("[^\\w ]", "");
+
         String result = null;
         switch (type) {
             case "WIKI":
@@ -80,12 +98,14 @@ public class MessageResponseThread extends Thread {
         }
 
 //        System.out.println(result);
-        int headerLength = type.length() + hexEncodedPrimaryKey.length() + 4 + 4; //assume 3 digits number of messages to send
+        int headerLength = hexEncodedPrimaryKey.length() + 4 + 4; //assume 2 digits number of messages to send
         int charactersPerMessage = 140 - headerLength;
         ArrayList<String> replies = new ArrayList<>();
-        String firstPartOfHeader = type + ":" + hexEncodedPrimaryKey + ":";
+        String firstPartOfHeader = "C" + hexEncodedPrimaryKey + ":";
         int numMessages = (int) Math.ceil((result.length() * 1.0)/charactersPerMessage);
         String totalNumMessages = convertToTwoLetterString(numMessages);
+
+
 
         int currentMessageNumber = 1;
         int characterPosition = 0;
@@ -107,57 +127,68 @@ public class MessageResponseThread extends Thread {
         }
 
 
-        try {
-            String recipient = message.getFrom()[0].toString();
-            recipient = recipient.replaceAll("\\D", "").substring(0, 10);
-
-//            System.out.println("Recipient: " + recipient);
-            HashMap<String, List<String>> toJsonify = new HashMap<>();
-            toJsonify.put("array", replies);
-            String json = new Gson().toJson(toJsonify);
-
-            System.out.println(json);
-            PrintWriter printWriter = new PrintWriter(file);
-            printWriter.println(recipient);
-            printWriter.println(json);
-            printWriter.close();
-            sendMessage(file.getAbsolutePath());
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-
-
-
-//        Properties sendProps = new Properties();
-//        sendProps.put("mail.smtp.auth", "true");
-//        sendProps.put("mail.smtp.starttls.enable", "true");
-//        sendProps.put("mail.smtp.host", "smtp.gmail.com");
-//        sendProps.put("mail.smtp.port", "587");
+//        try {
+//            String recipient = message.getFrom()[0].toString();
+//            recipient = recipient.replaceAll("\\D", "").substring(0, 10);
 //
-//        Session sendSession = Session.getInstance(sendProps, new javax.mail.Authenticator()
-//        {
-//            protected PasswordAuthentication getPasswordAuthentication()
-//            {
-//                return new PasswordAuthentication(user, password);
-//            }
-//        });
+////            System.out.println("Recipient: " + recipient);
+//            HashMap<String, List<String>> toJsonify = new HashMap<>();
+//            toJsonify.put("array", replies);
+//            String json = new Gson().toJson(toJsonify);
 //
-//        for (String replyText : replies) {
-//            try {
-//                Address[] from = message.getFrom();
-//                Message reply = new MimeMessage(sendSession);
-//                reply.setFrom(new InternetAddress("cortex@cortex.io"));
-//                reply.setRecipient(Message.RecipientType.BCC, from[0]);
-//                reply.setSubject("Thank you for using cortex");
-//                reply.setText(replyText);
-//                Transport.send(reply);
-//                Thread.sleep(800);
-//            } catch (Exception e) {
-//                e.printStackTrace();
-//                continue;
-//            }
+//            System.out.println(json);
+//            PrintWriter printWriter = new PrintWriter(file);
+//            printWriter.println(recipient);
+//            printWriter.println(json);
+//            printWriter.close();
+//            sendMessage(file.getAbsolutePath());
+//        } catch (Exception e) {
+//            e.printStackTrace();
 //        }
+
+
+
+
+        Properties sendProps = new Properties();
+        sendProps.put("mail.smtp.auth", "true");
+        sendProps.put("mail.smtp.starttls.enable", "true");
+        sendProps.put("mail.smtp.host", "smtp.gmail.com");
+        sendProps.put("mail.smtp.port", "587");
+
+        Session sendSession = Session.getInstance(sendProps, new javax.mail.Authenticator()
+        {
+            protected PasswordAuthentication getPasswordAuthentication()
+            {
+                return new PasswordAuthentication(user, password);
+            }
+        });
+
+        for (int i = 0; i < replies.size(); i++) {
+            String replyText = replies.get(i);
+            try {
+                Address[] from = message.getFrom();
+                Message reply = new MimeMessage(sendSession);
+//                reply.setFrom(new InternetAddress("cortex@cortex.io"));
+//                reply.setSubject("Thank you for using cortex");
+                String phoneNumber = from[0].toString().replaceAll("\\D", "").substring(0, 10);
+                String smsGatewayEmail = carrierToGateway.get(carrier);
+                System.out.println(phoneNumber+smsGatewayEmail);
+                reply.setFrom(new InternetAddress("cortextapp@gmail.com", "-"));
+                reply.setRecipient(Message.RecipientType.TO, new InternetAddress(phoneNumber+smsGatewayEmail));
+                reply.setText(replyText);
+                System.out.println(replyText);
+                Transport.send(reply);
+            } catch (Exception e) {
+                e.printStackTrace();
+                i--;
+            }finally {
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     private String convertToThreeLetterString(int num) {
@@ -252,7 +283,28 @@ public class MessageResponseThread extends Thread {
         }
 
         //if it doesn't fit our pattern
-        Pattern messagePattern = Pattern.compile("(QUES|WIKI):[a-fA-F0-9]+:.*");
+
+
+        StringBuilder carrierRegexBuilder = new StringBuilder();
+        for (String carrier : carrierToGateway.keySet()) {
+            carrierRegexBuilder.append(carrier).append('|');
+        }
+
+        //-1 to get rid of the last '|' character
+        String carrierRegex = "(" + carrierRegexBuilder.toString().substring(0, carrierRegexBuilder.length() - 1) + ")";
+
+        StringBuilder questionTypeBuilder = new StringBuilder();
+        for (String type: options) {
+            questionTypeBuilder.append(type).append('|');
+        }
+        String questionTypeRegex = "(" + questionTypeBuilder.toString().substring(0, questionTypeBuilder.length() - 1) + ")";
+
+
+
+        Pattern messagePattern = Pattern.compile(
+                carrierRegex + ":" +
+                questionTypeRegex + ":" +
+                "[a-fA-F0-9]+:.*");
         Matcher matcher = messagePattern.matcher(input);
         if (!matcher.matches()) {
             System.out.println("message didn't match regex");

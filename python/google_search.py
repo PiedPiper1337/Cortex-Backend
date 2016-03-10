@@ -31,7 +31,7 @@ if __name__ == "__main__":
     try:
         html = urllib.urlopen(urls[0]).read()
         soup = BeautifulSoup(Document(html).summary(), "lxml")
-        print remove_non_ascii(soup.get_text()[0:3000])
+        print remove_non_ascii(soup.get_text()[0:10000])
     except:
         print 'Sorry cortex had an error retrieving your result'
 
