@@ -1,10 +1,9 @@
-import com.google.gson.Gson;
-import org.json.simple.JSONArray;
-
 import javax.mail.*;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.InputStreamReader;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -18,10 +17,11 @@ public class MessageResponseThread extends Thread {
     private String user;
     private String password;
 
-    public static Map<String,String> carrierToGateway = new HashMap<>();
+    public static Map<String, String> carrierToGateway = new HashMap<>();
     public static List<String> options = new ArrayList<>();
-    static{
-        carrierToGateway.put("ATT","@txt.att.net"); //at&t
+
+    static {
+        carrierToGateway.put("ATT", "@txt.att.net"); //at&t
         carrierToGateway.put("VER", "@vtext.com"); //verizon
         carrierToGateway.put("SPR", "@messaging.sprintpcs.com"); //sprint
         carrierToGateway.put("TMO", "@tmomail.net"); //t-mobile
@@ -29,8 +29,6 @@ public class MessageResponseThread extends Thread {
         options.add("QUES");
         options.add("WIKI");
     }
-
-
 
 
     public MessageResponseThread(Message message, String user, String password) {
@@ -45,11 +43,24 @@ public class MessageResponseThread extends Thread {
             if (shouldReply(message)) {
                 System.out.println("should reply!");
                 String messageText = (String) message.getContent();
-                System.out.println("message text was: "+ messageText);
+                messageText = filterGoogleFooter(messageText);
+                System.out.println("message text was: " + messageText);
                 replyToMessage(messageText);
             }
         } catch (Exception e) {
             e.printStackTrace();
+        }
+    }
+
+    private String filterGoogleFooter(String messageText) {
+        String lowerCase = messageText.toLowerCase();
+        if (lowerCase.contains("www.google.com/voice/")
+                && lowerCase.contains("sent using sms-to-email")
+                && lowerCase.contains("reply to this email to text the sender back")
+                ) {
+            return messageText.substring(0, messageText.length()-Constants.GOOGLE_FOOTER_LENGTH);
+        } else {
+            return messageText;
         }
     }
 
@@ -102,9 +113,8 @@ public class MessageResponseThread extends Thread {
         int charactersPerMessage = 140 - headerLength;
         ArrayList<String> replies = new ArrayList<>();
         String firstPartOfHeader = "C" + hexEncodedPrimaryKey + ":";
-        int numMessages = (int) Math.ceil((result.length() * 1.0)/charactersPerMessage);
+        int numMessages = (int) Math.ceil((result.length() * 1.0) / charactersPerMessage);
         String totalNumMessages = convertToTwoLetterString(numMessages);
-
 
 
         int currentMessageNumber = 1;
@@ -147,18 +157,14 @@ public class MessageResponseThread extends Thread {
 //        }
 
 
-
-
         Properties sendProps = new Properties();
         sendProps.put("mail.smtp.auth", "true");
         sendProps.put("mail.smtp.starttls.enable", "true");
         sendProps.put("mail.smtp.host", "smtp.gmail.com");
         sendProps.put("mail.smtp.port", "587");
 
-        Session sendSession = Session.getInstance(sendProps, new javax.mail.Authenticator()
-        {
-            protected PasswordAuthentication getPasswordAuthentication()
-            {
+        Session sendSession = Session.getInstance(sendProps, new javax.mail.Authenticator() {
+            protected PasswordAuthentication getPasswordAuthentication() {
                 return new PasswordAuthentication(user, password);
             }
         });
@@ -172,16 +178,16 @@ public class MessageResponseThread extends Thread {
 //                reply.setSubject("Thank you for using cortex");
                 String phoneNumber = from[0].toString().replaceAll("\\D", "").substring(0, 10);
                 String smsGatewayEmail = carrierToGateway.get(carrier);
-                System.out.println(phoneNumber+smsGatewayEmail);
+                System.out.println(phoneNumber + smsGatewayEmail);
                 reply.setFrom(new InternetAddress("cortextapp@gmail.com", "-"));
-                reply.setRecipient(Message.RecipientType.TO, new InternetAddress(phoneNumber+smsGatewayEmail));
+                reply.setRecipient(Message.RecipientType.TO, new InternetAddress(phoneNumber + smsGatewayEmail));
                 reply.setText(replyText);
                 System.out.println(replyText);
                 Transport.send(reply);
             } catch (Exception e) {
                 e.printStackTrace();
                 i--;
-            }finally {
+            } finally {
                 try {
                     Thread.sleep(5000);
                 } catch (InterruptedException e) {
@@ -210,8 +216,6 @@ public class MessageResponseThread extends Thread {
     }
 
 
-
-
     private String lookUpGoogle(String actualMessage) {
         return performPython("google_search.py", actualMessage);
     }
@@ -226,7 +230,7 @@ public class MessageResponseThread extends Thread {
             Random random = new Random();
             int timeToSleep = random.nextInt(2000);
             Thread.sleep(timeToSleep);
-            Process p = Runtime.getRuntime().exec(new String[]{"python", "python/"+pythonProgram, arg});
+            Process p = Runtime.getRuntime().exec(new String[]{"python", "python/" + pythonProgram, arg});
             BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
             StringBuilder result = new StringBuilder();
             String s;
@@ -239,14 +243,14 @@ public class MessageResponseThread extends Thread {
                 }
                 Thread.sleep(200);
             }
-            output = result.toString().replaceAll("\\s+"," ");
+            output = result.toString().replaceAll("\\s+", " ");
             output = output.trim();
             System.out.println(output);
 
 
             if (output.length() > 0) {
-                if (output.length() > Constants.STRING_LIMIT) {
-                    output = output.substring(0, Constants.STRING_LIMIT);
+                if (output.length() > Constants.RETURNED_MESSAGE_LIMIT) {
+                    output = output.substring(0, Constants.RETURNED_MESSAGE_LIMIT);
                 }
             } else {
                 System.out.println("length wasn't right");
@@ -266,7 +270,7 @@ public class MessageResponseThread extends Thread {
 
             BufferedReader stdInput = new BufferedReader(new InputStreamReader(p.getInputStream()));
             String s;
-            while ((s=stdInput.readLine())!= null) {
+            while ((s = stdInput.readLine()) != null) {
                 System.out.println(s);
             }
         } catch (Exception e) {
@@ -276,8 +280,8 @@ public class MessageResponseThread extends Thread {
 
 
     private boolean verifyString(String input) {
-        //if its too long
-        if (input.length() > 150) {
+        //if its too long, >300 because google will append its own stupid footer
+        if (input.length() > Constants.ACCEPTABLE_SMS_INPUT_LENGTH) {
             System.out.println("message was too long");
             return false;
         }
@@ -294,17 +298,16 @@ public class MessageResponseThread extends Thread {
         String carrierRegex = "(" + carrierRegexBuilder.toString().substring(0, carrierRegexBuilder.length() - 1) + ")";
 
         StringBuilder questionTypeBuilder = new StringBuilder();
-        for (String type: options) {
+        for (String type : options) {
             questionTypeBuilder.append(type).append('|');
         }
         String questionTypeRegex = "(" + questionTypeBuilder.toString().substring(0, questionTypeBuilder.length() - 1) + ")";
 
 
-
         Pattern messagePattern = Pattern.compile(
                 carrierRegex + ":" +
-                questionTypeRegex + ":" +
-                "[a-fA-F0-9]+:.*");
+                        questionTypeRegex + ":" +
+                        "[a-fA-F0-9]+:.*");
         Matcher matcher = messagePattern.matcher(input);
         if (!matcher.matches()) {
             System.out.println("message didn't match regex");
